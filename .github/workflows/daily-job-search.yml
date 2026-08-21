@@ -1,0 +1,51 @@
+name: Daily India Job Search
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  extract-jobs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run free-first daily extraction
+        env:
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
+          ADZUNA_APP_IDS: ${{ secrets.ADZUNA_APP_IDS }}
+          ADZUNA_API_KEYS: ${{ secrets.ADZUNA_API_KEYS }}
+          JSEARCH_API_KEY: ${{ secrets.JSEARCH_API_KEY }}
+          JSEARCH_API_KEYS: ${{ secrets.JSEARCH_API_KEYS }}
+          LINKEDIN_API_KEY: ${{ secrets.LINKEDIN_API_KEY }}
+          LINKEDIN_API_KEYS: ${{ secrets.LINKEDIN_API_KEYS }}
+          INDEED_API_KEY: ${{ secrets.INDEED_API_KEY }}
+          INDEED_API_KEYS: ${{ secrets.INDEED_API_KEYS }}
+          GLASSDOOR_API_KEY: ${{ secrets.GLASSDOOR_API_KEY }}
+          GLASSDOOR_API_KEYS: ${{ secrets.GLASSDOOR_API_KEYS }}
+          NAUKRI_API_KEY: ${{ secrets.NAUKRI_API_KEY }}
+          NAUKRI_API_KEYS: ${{ secrets.NAUKRI_API_KEYS }}
+          ANGELLIST_API_KEY: ${{ secrets.ANGELLIST_API_KEY }}
+          ANGELLIST_API_KEYS: ${{ secrets.ANGELLIST_API_KEYS }}
+        run: npm run start:no-cache
+
+      - name: Upload extracted jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-job-search-output
+          path: output/
+          if-no-files-found: error

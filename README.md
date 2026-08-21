@@ -1,6 +1,6 @@
 # Job Search Automation 🚀
 
-A production-ready **Node.js** script that aggregates job listings from **10+ portals**, scores them against your personal skill profile, and exports a ranked CSV — so you can stop hunting across tabs and start applying.
+A production-ready **Node.js** script that aggregates job listings from **free and optional sources**, scores them against your personal skill profile, and exports a ranked CSV for **India-focused daily job extraction**.
 
 ---
 
@@ -8,10 +8,12 @@ A production-ready **Node.js** script that aggregates job listings from **10+ po
 
 | Feature | Details |
 |---|---|
-| **Multi-portal aggregation** | RemoteOK, JSearch, LinkedIn, Indeed, Glassdoor, Naukri, AngelList, Adzuna, Greenhouse/Lever company portals |
+| **Multi-location India search** | One run can fetch jobs across multiple Indian cities |
+| **Free-first aggregation** | Default setup uses RemoteOK, Adzuna, Greenhouse, and Lever/company portals |
+| **Optional key rotation** | Providers with keys can use one key or rotate across multiple configured keys |
 | **Skills-based ranking** | Scores every listing against your skill set and sorts by match % |
 | **Salary filtering** | Parses salary strings, converts USD/EUR/GBP → INR, filters by range |
-| **Deduplication** | Drops duplicates by job ID and normalised title+company pair |
+| **Deduplication** | Drops duplicates by job ID, URL, and normalised company/title fingerprints |
 | **Caching** | In-memory + disk cache with configurable TTL — skip redundant API calls |
 | **Retry + rate-limit** | Exponential back-off retries, configurable concurrency cap |
 | **Multi-format output** | CSV (primary), JSON (optional), rich console summary |
@@ -75,7 +77,7 @@ cp .env.example .env
 
 ## 🔑 API Key Setup
 
-### Free sources (no key required)
+### Free sources used by default
 | Source | Notes |
 |---|---|
 | **RemoteOK** | Public API – works out of the box |
@@ -83,8 +85,8 @@ cp .env.example .env
 | **Greenhouse** | Public job board API for listed companies |
 | **Lever** | Public job board API for listed companies |
 
-### RapidAPI-based sources
-All paid/freemium sources use [RapidAPI](https://rapidapi.com). Subscribe to each API's **free tier** (usually 100–500 requests/month) and copy the key into `.env`.
+### Optional sources with free tiers
+The connectors below are available but **disabled by default** so the standard run stays free-first. If you want them later, use their free tiers and add keys to `.env`.
 
 | Source | RapidAPI Link | Env Var |
 |---|---|---|
@@ -97,14 +99,14 @@ All paid/freemium sources use [RapidAPI](https://rapidapi.com). Subscribe to eac
 
 ### Configure `.env`
 ```env
-JSEARCH_API_KEY=your_key_here
-LINKEDIN_API_KEY=your_key_here
-INDEED_API_KEY=your_key_here
-GLASSDOOR_API_KEY=your_key_here
-NAUKRI_API_KEY=your_key_here
-ANGELLIST_API_KEY=your_key_here
 ADZUNA_APP_ID=your_app_id
 ADZUNA_API_KEY=your_key_here
+ADZUNA_APP_IDS=optional_second_app_id, optional_third_app_id
+ADZUNA_API_KEYS=optional_second_key, optional_third_key
+
+# Optional free-tier connectors
+JSEARCH_API_KEY=your_key_here
+JSEARCH_API_KEYS=optional_second_key, optional_third_key
 ```
 
 ---
@@ -116,6 +118,7 @@ ADZUNA_API_KEY=your_key_here
 "search": {
   "keywords": ["Java", "Spring Boot", "Microservices"],
   "location": "India",
+  "locations": ["Bengaluru", "Hyderabad", "Pune", "Mumbai"],
   "jobType": "fulltime",
   "experienceMin": 3,
   "salaryMinINR": 2000000,
@@ -133,12 +136,12 @@ The script builds a flat list and scores every job description against it.
 ```json
 "sources": {
   "remoteok": true,
-  "jsearch": true,
-  "linkedin": true,
-  "indeed": true,
-  "glassdoor": true,
-  "naukri": true,
-  "angellist": true,
+  "jsearch": false,
+  "linkedin": false,
+  "indeed": false,
+  "glassdoor": false,
+  "naukri": false,
+  "angellist": false,
   "adzuna": true,
   "companyPortals": true
 }
@@ -146,6 +149,14 @@ The script builds a flat list and scores every job description against it.
 
 ### Company portals
 Add your own career page URLs to `companyPortals` array and set `"enabled": true`.
+
+### Daily automated extraction
+This repo includes a GitHub Actions workflow that runs every day and uploads the generated `output/` files as artifacts.
+
+```bash
+# Run the same free-first extraction locally
+npm run start:no-cache
+```
 
 ---
 
@@ -183,8 +194,8 @@ After a successful run you'll find:
 
 | Symptom | Fix |
 |---|---|
-| `JSEARCH_API_KEY not set – skipping` | Add the key to `.env` |
-| All sources skipped | Run `cp .env.example .env` and fill in at least one key |
+| `JSEARCH_API_KEY not set – skipping` | Leave it disabled or add a free-tier key to `.env` |
+| All sources skipped | Keep `remoteok`, `adzuna`, or `companyPortals` enabled in `config.json` |
 | `0 jobs` in CSV | Check `output/job-search.log` for errors; try `--no-cache` |
 | CSV is empty after incremental run | Delete `output/jobs.csv` and re-run to regenerate |
 | Rate-limit errors | Reduce `concurrency` in `config.json` to `1` |

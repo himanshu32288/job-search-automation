@@ -10,6 +10,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { getRapidApiCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE_URL = 'https://naukri-com-jobs.p.rapidapi.com/';
 
@@ -21,35 +22,45 @@ const BASE_URL = 'https://naukri-com-jobs.p.rapidapi.com/';
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger) {
-  const apiKey = process.env.NAUKRI_API_KEY;
-  const apiHost = process.env.NAUKRI_API_HOST || 'naukri-com-jobs.p.rapidapi.com';
+  const credentials = getRapidApiCredentials({
+    keyName: 'NAUKRI_API_KEY',
+    keysName: 'NAUKRI_API_KEYS',
+    hostName: 'NAUKRI_API_HOST',
+    defaultHost: 'naukri-com-jobs.p.rapidapi.com',
+    placeholder: 'your_naukri_api_key_here',
+  });
 
-  if (!apiKey || apiKey === 'your_naukri_rapidapi_key_here') {
+  if (credentials.length === 0) {
     logger.warn('Naukri: NAUKRI_API_KEY not set – skipping');
     return [];
   }
 
-  logger.info('Naukri: fetching jobs...');
+  logger.info(`Naukri: fetching jobs for ${cfg.location || 'India'}...`);
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
 
   let raw;
   try {
-    raw = await httpGet(BASE_URL, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': apiHost,
-      },
-      params: {
-        keyword: query,
-        location: cfg.location || 'India',
-        experience: String(cfg.experienceMin || 3),
-        salary: String(cfg.salaryMinINR || 2000000),
-      },
-      timeout: cfg.requestTimeoutMs,
-      retries: cfg.retryAttempts,
-      retryDelay: cfg.retryDelayMs,
+    raw = await runWithFallback({
+      label: 'Naukri',
+      candidates: credentials,
       logger,
+      runner: ({ apiKey, apiHost }) => httpGet(BASE_URL, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': apiHost,
+        },
+        params: {
+          keyword: query,
+          location: cfg.location || 'India',
+          experience: String(cfg.experienceMin || 3),
+          salary: String(cfg.salaryMinINR || 2000000),
+        },
+        timeout: cfg.requestTimeoutMs,
+        retries: cfg.retryAttempts,
+        retryDelay: cfg.retryDelayMs,
+        logger,
+      }),
     });
   } catch (err) {
     logger.error(`Naukri: fetch failed – ${err.message}`);
@@ -59,7 +70,7 @@ async function fetchJobs(cfg, logger) {
   const jobs = raw && Array.isArray(raw.jobDetails)
     ? raw.jobDetails
     : (Array.isArray(raw) ? raw : []);
-  logger.info(`Naukri: received ${jobs.length} listings`);
+  logger.info(`Naukri: received ${jobs.length} listings for ${cfg.location || 'India'}`);
 
   return jobs.slice(0, cfg.maxResultsPerSource || 50).map(normalise);
 }

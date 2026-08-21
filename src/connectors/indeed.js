@@ -10,6 +10,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { getRapidApiCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE_URL = 'https://indeed12.p.rapidapi.com/jobs/search';
 
@@ -21,15 +22,20 @@ const BASE_URL = 'https://indeed12.p.rapidapi.com/jobs/search';
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger) {
-  const apiKey = process.env.INDEED_API_KEY;
-  const apiHost = process.env.INDEED_API_HOST || 'indeed12.p.rapidapi.com';
+  const credentials = getRapidApiCredentials({
+    keyName: 'INDEED_API_KEY',
+    keysName: 'INDEED_API_KEYS',
+    hostName: 'INDEED_API_HOST',
+    defaultHost: 'indeed12.p.rapidapi.com',
+    placeholder: 'your_indeed_rapidapi_key_here',
+  });
 
-  if (!apiKey || apiKey === 'your_indeed_rapidapi_key_here') {
+  if (credentials.length === 0) {
     logger.warn('Indeed: INDEED_API_KEY not set – skipping');
     return [];
   }
 
-  logger.info('Indeed: fetching jobs...');
+  logger.info(`Indeed: fetching jobs for ${cfg.location || 'India'}...`);
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
   const location = cfg.location || 'India';
@@ -38,22 +44,27 @@ async function fetchJobs(cfg, logger) {
 
   let raw;
   try {
-    raw = await httpGet(BASE_URL, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': apiHost,
-      },
-      params: {
-        query,
-        location,
-        page_id: '1',
-        country: country,
-        fromage: '30',
-      },
-      timeout: cfg.requestTimeoutMs,
-      retries: cfg.retryAttempts,
-      retryDelay: cfg.retryDelayMs,
+    raw = await runWithFallback({
+      label: 'Indeed',
+      candidates: credentials,
       logger,
+      runner: ({ apiKey, apiHost }) => httpGet(BASE_URL, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': apiHost,
+        },
+        params: {
+          query,
+          location,
+          page_id: '1',
+          country: country,
+          fromage: '30',
+        },
+        timeout: cfg.requestTimeoutMs,
+        retries: cfg.retryAttempts,
+        retryDelay: cfg.retryDelayMs,
+        logger,
+      }),
     });
   } catch (err) {
     logger.error(`Indeed: fetch failed – ${err.message}`);
@@ -61,7 +72,7 @@ async function fetchJobs(cfg, logger) {
   }
 
   const jobs = (raw && Array.isArray(raw.hits)) ? raw.hits : [];
-  logger.info(`Indeed: received ${jobs.length} listings`);
+  logger.info(`Indeed: received ${jobs.length} listings for ${cfg.location || 'India'}`);
 
   return jobs.slice(0, cfg.maxResultsPerSource || 50).map(normalise);
 }

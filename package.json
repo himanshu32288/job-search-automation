@@ -7,7 +7,7 @@
     "start": "node index.js",
     "start:no-cache": "node index.js --no-cache",
     "start:clear-cache": "node index.js --clear-cache",
-    "test": "node -e \"require('./src/utils/matcher'); require('./src/utils/salary'); require('./src/utils/deduplicator'); console.log('All modules loaded OK');\""
+    "test": "node --test"
   },
   "keywords": [
     "job-search",

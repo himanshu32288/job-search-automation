@@ -10,6 +10,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { getRapidApiCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE_URL = 'https://glassdoor.p.rapidapi.com/jobs/search';
 
@@ -21,35 +22,45 @@ const BASE_URL = 'https://glassdoor.p.rapidapi.com/jobs/search';
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger) {
-  const apiKey = process.env.GLASSDOOR_API_KEY;
-  const apiHost = process.env.GLASSDOOR_API_HOST || 'glassdoor.p.rapidapi.com';
+  const credentials = getRapidApiCredentials({
+    keyName: 'GLASSDOOR_API_KEY',
+    keysName: 'GLASSDOOR_API_KEYS',
+    hostName: 'GLASSDOOR_API_HOST',
+    defaultHost: 'glassdoor.p.rapidapi.com',
+    placeholder: 'your_glassdoor_rapidapi_key_here',
+  });
 
-  if (!apiKey || apiKey === 'your_glassdoor_rapidapi_key_here') {
+  if (credentials.length === 0) {
     logger.warn('Glassdoor: GLASSDOOR_API_KEY not set – skipping');
     return [];
   }
 
-  logger.info('Glassdoor: fetching jobs...');
+  logger.info(`Glassdoor: fetching jobs for ${cfg.location || 'India'}...`);
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
   const location = cfg.location || 'India';
 
   let raw;
   try {
-    raw = await httpGet(BASE_URL, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': apiHost,
-      },
-      params: {
-        keyword: query,
-        location,
-        page: 1,
-      },
-      timeout: cfg.requestTimeoutMs,
-      retries: cfg.retryAttempts,
-      retryDelay: cfg.retryDelayMs,
+    raw = await runWithFallback({
+      label: 'Glassdoor',
+      candidates: credentials,
       logger,
+      runner: ({ apiKey, apiHost }) => httpGet(BASE_URL, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': apiHost,
+        },
+        params: {
+          keyword: query,
+          location,
+          page: 1,
+        },
+        timeout: cfg.requestTimeoutMs,
+        retries: cfg.retryAttempts,
+        retryDelay: cfg.retryDelayMs,
+        logger,
+      }),
     });
   } catch (err) {
     logger.error(`Glassdoor: fetch failed – ${err.message}`);
@@ -58,7 +69,7 @@ async function fetchJobs(cfg, logger) {
 
   const jobs = raw && Array.isArray(raw.data) ? raw.data
     : (raw && Array.isArray(raw.results) ? raw.results : []);
-  logger.info(`Glassdoor: received ${jobs.length} listings`);
+  logger.info(`Glassdoor: received ${jobs.length} listings for ${cfg.location || 'India'}`);
 
   return jobs.slice(0, cfg.maxResultsPerSource || 50).map(normalise);
 }

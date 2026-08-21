@@ -1,7 +1,8 @@
 {
   "search": {
     "keywords": ["Java", "Spring Boot", "Microservices", "Backend Developer", "Software Engineer"],
-    "location": "",
+    "location": "India",
+    "locations": ["Bengaluru", "Hyderabad", "Pune", "Mumbai", "Chennai", "Gurugram", "Noida"],
     "countryCode": "in",
     "remote": true,
     "jobType": "fulltime",
@@ -77,12 +78,12 @@
   },
   "sources": {
     "remoteok": true,
-    "jsearch": true,
-    "linkedin": true,
-    "indeed": true,
-    "glassdoor": true,
-    "naukri": true,
-    "angellist": true,
+    "jsearch": false,
+    "linkedin": false,
+    "indeed": false,
+    "glassdoor": false,
+    "naukri": false,
+    "angellist": false,
     "adzuna": true,
     "companyPortals": true
   },
