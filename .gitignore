@@ -4,4 +4,7 @@ node_modules/
 cache/
 output/
 dist/
+.cache/
+output/*.csv
+coverage/
 .DS_Store
