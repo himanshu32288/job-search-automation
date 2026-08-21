@@ -95,4 +95,5 @@ test('deduplicate removes repeats across ids, urls, and repeated location search
 
   const deduped = deduplicate(jobs);
   assert.equal(deduped.length, 1);
+  assert.equal(deduped[0].jobId, 'same-id');
 });

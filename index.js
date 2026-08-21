@@ -130,7 +130,7 @@ async function main() {
   });
 
   // Run all fetch tasks in parallel (limited by concurrency setting)
-  logger.info(`Fetching from ${tasks.length} source(s) across ${searchLocations.length} Indian location(s) with concurrency=${searchCfg.concurrency || 3}...`);
+  logger.info(`Fetching from ${tasks.length} source(s) across ${searchLocations.length} location(s) with concurrency=${searchCfg.concurrency || 3}...`);
   const results = await Promise.allSettled(tasks);
 
   // Flatten results

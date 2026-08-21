@@ -23,7 +23,7 @@ function getEnvValues({ singleName, multiName, placeholder }) {
   }
 
   Object.keys(process.env)
-    .filter((name) => name.startsWith(`${singleName}_`))
+    .filter((name) => new RegExp(`^${singleName}_\\d+$`).test(name))
     .sort()
     .forEach((name) => {
       values.push(...splitValues(process.env[name]));
