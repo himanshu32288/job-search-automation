@@ -77,7 +77,7 @@ function normalise(j) {
     jobType: j.contract_time === 'full_time' ? 'Full-time' : (j.contract_time || ''),
     experienceRequired: '',
     salaryRaw: j.salary_min
-      ? `USD ${j.salary_min}${j.salary_max ? ` - ${j.salary_max}` : ''}`.trim()
+      ? `INR ${j.salary_min}${j.salary_max ? ` - ${j.salary_max}` : ''}`.trim()
       : '',
     description: (j.description || '').replace(/<[^>]*>/g, '').trim(),
     url: j.redirect_url || j.url || '',

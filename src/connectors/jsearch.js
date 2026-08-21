@@ -89,11 +89,11 @@ function normalise(j) {
     company: j.employer_name || '',
     location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', ') || 'N/A',
     jobType: j.job_employment_type || 'Full-time',
-    experienceRequired: j.job_required_experience
-      ? `${j.job_required_experience.required_experience_in_months
-          ? Math.round(j.job_required_experience.required_experience_in_months / 12)
-          : ''}` + ' years'
-      : '',
+    experienceRequired: (() => {
+      const months = j.job_required_experience && j.job_required_experience.required_experience_in_months;
+      if (!months) return '';
+      return `${Math.round(months / 12)} years`;
+    })(),
     salaryRaw,
     description: (j.job_description || '').trim(),
     url: j.job_apply_link || j.job_google_link || '',

@@ -10,6 +10,34 @@ const path = require('path');
 const { createObjectCsvWriter } = require('csv-writer');
 const { formatINR, salaryToINR } = require('./utils/salary');
 
+/**
+ * Extract the last field from a single CSV line, handling RFC-4180 quoted fields.
+ * @param {string} line
+ * @returns {string}
+ */
+function parseLastCsvField(line) {
+  // Walk backwards through the fields
+  let i = line.length - 1;
+  // Strip trailing \r
+  if (line[i] === '\r') i--;
+
+  if (i < 0) return '';
+
+  if (line[i] === '"') {
+    // Quoted field – find the matching opening quote
+    const end = i;
+    i--;
+    while (i >= 0 && !(line[i] === '"' && (i === 0 || line[i - 1] === ','))) {
+      i--;
+    }
+    return line.substring(i + 1, end).replace(/""/g, '"');
+  }
+
+  // Unquoted field – find the preceding comma
+  while (i >= 0 && line[i] !== ',') i--;
+  return line.substring(i + 1).trim();
+}
+
 /** CSV column definitions */
 const CSV_HEADERS = [
   { id: 'title',              title: 'Job Title' },
@@ -73,13 +101,16 @@ async function writeCsv(jobs, outputCfg = {}, logger = console) {
   let appendMode = false;
 
   if (incremental && fs.existsSync(csvPath)) {
-    // Read existing IDs from first line of each row (last column = jobId)
+    // Parse existing CSV properly to extract Job IDs (last column).
+    // A simple RFC-4180 aware extractor for the last quoted/unquoted field.
     const existing = fs.readFileSync(csvPath, 'utf8').split('\n');
     // Header is first line – skip it
     for (let i = 1; i < existing.length; i++) {
-      const cols = existing[i].split(',');
-      const id = cols[cols.length - 1]?.replace(/"/g, '').trim();
-      if (id) existingIds.add(id);
+      const line = existing[i].trim();
+      if (!line) continue;
+      // Extract the last field from a CSV line, handling quoted fields.
+      const lastField = parseLastCsvField(line);
+      if (lastField) existingIds.add(lastField);
     }
     appendMode = true;
   }

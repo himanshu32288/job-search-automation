@@ -33,6 +33,7 @@ async function fetchJobs(cfg, logger) {
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
   const location = cfg.location || 'India';
+  const locationId = location.toLowerCase().replace(/\s+/g, '-');
 
   let raw;
   try {
@@ -43,7 +44,7 @@ async function fetchJobs(cfg, logger) {
       },
       params: {
         keywords: query,
-        location_id: 'india',
+        location_id: locationId,
         dateSincePosted: 'past Month',
         jobType: 'full time',
         onsiteRemote: 'remote',

@@ -33,6 +33,8 @@ async function fetchJobs(cfg, logger) {
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
   const location = cfg.location || 'India';
+  // Derive country code: default to 'in' (India) unless config overrides
+  const country = cfg.countryCode || 'in';
 
   let raw;
   try {
@@ -45,7 +47,7 @@ async function fetchJobs(cfg, logger) {
         query,
         location,
         page_id: '1',
-        country: 'in',
+        country: country,
         fromage: '30',
       },
       timeout: cfg.requestTimeoutMs,
