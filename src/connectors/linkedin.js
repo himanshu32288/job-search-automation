@@ -97,7 +97,7 @@ async function fetchGuestJobs(cfg, logger) {
     try {
       html = await httpGet(GUEST_BASE_URL, {
         headers: {
-          'User-Agent': 'Mozilla/5.0',
+          'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
         },
         params: {
           keywords: query,
@@ -140,25 +140,34 @@ function parseGuestHtml(html) {
   $('.base-card').each((_, card) => {
     const node = $(card);
     const urn = node.attr('data-entity-urn') || '';
-    const idMatch = urn.match(/(\d+)\s*$/);
+    const jobUrl = node.find('a.base-card__full-link').attr('href') || '';
+    const idMatch = urn.match(/(\d+)\s*$/) || jobUrl.match(/currentJobId=(\d+)/);
+    const title = node.find('.base-search-card__title').text().trim();
+    const company = node.find('.base-search-card__subtitle').text().trim();
+    const jobLocation = node.find('.job-search-card__location').text().trim();
+    const fallbackId = [title, company, jobLocation, jobUrl]
+      .join('-')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
     jobs.push({
-      jobId: `linkedin-${idMatch ? idMatch[1] : ''}`,
-      title: node.find('.base-search-card__title').text().trim(),
-      company: node.find('.base-search-card__subtitle').text().trim(),
-      location: node.find('.job-search-card__location').text().trim(),
-      jobType: 'Full-time',
+      jobId: `linkedin-${idMatch ? idMatch[1] : fallbackId}`,
+      title,
+      company,
+      location: jobLocation,
+      jobType: '',
       experienceRequired: '',
       salaryRaw: '',
       description: '',
-      url: node.find('a.base-card__full-link').attr('href') || '',
+      url: jobUrl,
       source: 'LinkedIn',
       postedDate: node.find('time').attr('datetime') || '',
       tags: '',
     });
   });
 
-  return jobs.filter((job) => job.title && job.url);
+  return jobs.filter((job) => job.title && job.url && job.jobId.length > 'linkedin-'.length);
 }
 
 /**
