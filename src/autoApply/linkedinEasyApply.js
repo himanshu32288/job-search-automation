@@ -184,30 +184,29 @@ async function fillCurrentStep(page, answers, resumePath) {
     await field.selectOption({ label: answer }).catch(() => {});
   }
 
-  // Try to select a resume already stored in the LinkedIn profile first.
+  // Primary: select a resume already stored in the LinkedIn profile.
   const storedResumeSelected = await selectLinkedInStoredResume(page);
+  if (storedResumeSelected) return;
 
-  // Fall back to uploading a local file only when no stored resume was selected.
-  if (!storedResumeSelected) {
-    if (!resumePath) return;
-    const fileInputs = page.locator('input[type="file"]');
-    const fileInputCount = await fileInputs.count();
-    for (let index = 0; index < fileInputCount; index += 1) {
-      const field = fileInputs.nth(index);
-      const metadata = [
-        await field.getAttribute('aria-label').catch(() => ''),
-        await field.getAttribute('name').catch(() => ''),
-        await field.getAttribute('id').catch(() => ''),
-        await field.getAttribute('accept').catch(() => ''),
-      ].join(' ');
-      const normalisedMetadata = normalise(metadata);
-      const shouldUploadResume = fileInputCount === 1
-        || normalisedMetadata.includes('resume')
-        || normalisedMetadata.includes('cv');
+  // Fallback: upload the local file at the exact configured resumePath.
+  if (!resumePath) return;
+  const fileInputs = page.locator('input[type="file"]');
+  const fileInputCount = await fileInputs.count();
+  for (let index = 0; index < fileInputCount; index += 1) {
+    const field = fileInputs.nth(index);
+    const metadata = [
+      await field.getAttribute('aria-label').catch(() => ''),
+      await field.getAttribute('name').catch(() => ''),
+      await field.getAttribute('id').catch(() => ''),
+      await field.getAttribute('accept').catch(() => ''),
+    ].join(' ');
+    const normalisedMetadata = normalise(metadata);
+    const shouldUploadResume = fileInputCount === 1
+      || normalisedMetadata.includes('resume')
+      || normalisedMetadata.includes('cv');
 
-      if (!shouldUploadResume) continue;
-      await field.setInputFiles(resumePath).catch(() => {});
-    }
+    if (!shouldUploadResume) continue;
+    await field.setInputFiles(resumePath).catch(() => {});
   }
 }
 
@@ -277,8 +276,7 @@ async function runLinkedInEasyApply(jobs, cfg = {}, logger = console) {
     maxApplicationsPerRun: 10,
     maxStepsPerApplication: 10,
     userDataDir: '.linkedin-session',
-    resumeDirectory: 'resumes',
-    resumeExtensions: ['.pdf', '.doc', '.docx'],
+    resumePath: '',
     loginWaitMs: 0,
     navigationTimeoutMs: 45000,
     openLinkedInHomeFirst: true,
@@ -298,11 +296,13 @@ async function runLinkedInEasyApply(jobs, cfg = {}, logger = console) {
     return { attempted: 0, submitted: 0, skipped: 0, prepared: 0, appliedUrls: new Set() };
   }
 
-  const resumePath = getLatestResumeFile(effectiveCfg.resumeDirectory, effectiveCfg.resumeExtensions);
+  const resumePath = effectiveCfg.resumePath ? path.resolve(effectiveCfg.resumePath) : null;
   if (!resumePath) {
-    logger.info('LinkedIn auto-apply: no local resume found; will use LinkedIn stored resume if available');
+    logger.info('LinkedIn auto-apply: no local resumePath configured; will rely solely on LinkedIn stored resume');
+  } else if (!fs.existsSync(resumePath)) {
+    logger.warn(`LinkedIn auto-apply: configured resumePath not found at ${resumePath}; will rely on LinkedIn stored resume`);
   } else {
-    logger.info(`LinkedIn auto-apply: local resume available at ${resumePath} (used as fallback when no stored resume is found)`);
+    logger.info(`LinkedIn auto-apply: local fallback resume ready at ${resumePath}`);
   }
 
   const chromium = getChromium();
