@@ -9,10 +9,12 @@
 
 'use strict';
 
+const cheerio = require('cheerio');
 const { httpGet } = require('../utils/http');
 const { getRapidApiCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE_URL = 'https://linkedin-jobs-search.p.rapidapi.com/';
+const GUEST_BASE_URL = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search';
 
 /**
  * Fetch jobs from LinkedIn via RapidAPI.
@@ -31,8 +33,8 @@ async function fetchJobs(cfg, logger) {
   });
 
   if (credentials.length === 0) {
-    logger.warn('LinkedIn: LINKEDIN_API_KEY not set – skipping');
-    return [];
+    logger.warn('LinkedIn: LINKEDIN_API_KEY not set – using public guest endpoint fallback');
+    return fetchGuestJobs(cfg, logger);
   }
 
   logger.info(`LinkedIn: fetching jobs for ${cfg.location || 'India'}...`);
@@ -67,14 +69,105 @@ async function fetchJobs(cfg, logger) {
       }),
     });
   } catch (err) {
-    logger.error(`LinkedIn: fetch failed – ${err.message}`);
-    return [];
+    logger.warn(`LinkedIn: RapidAPI fetch failed – ${err.message}; using public guest endpoint fallback`);
+    return fetchGuestJobs(cfg, logger);
   }
 
   const jobs = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.data) ? raw.data : []);
+  if (jobs.length === 0) {
+    logger.warn('LinkedIn: RapidAPI returned 0 listings; using public guest endpoint fallback');
+    return fetchGuestJobs(cfg, logger);
+  }
   logger.info(`LinkedIn: received ${jobs.length} listings for ${cfg.location || 'India'}`);
 
   return jobs.slice(0, cfg.maxResultsPerSource || 50).map(normalise);
+}
+
+async function fetchGuestJobs(cfg, logger) {
+  const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
+  const location = cfg.location || 'India';
+  const maxResults = cfg.maxResultsPerSource || 50;
+  const pageSize = 25;
+  const results = [];
+
+  logger.info(`LinkedIn (guest): fetching jobs for ${location}...`);
+
+  for (let start = 0; start < maxResults; start += pageSize) {
+    let html = '';
+    try {
+      html = await httpGet(GUEST_BASE_URL, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+        },
+        params: {
+          keywords: query,
+          location,
+          start,
+        },
+        timeout: cfg.requestTimeoutMs,
+        retries: cfg.retryAttempts,
+        retryDelay: cfg.retryDelayMs,
+        logger,
+      });
+    } catch (err) {
+      logger.warn(`LinkedIn (guest): fetch failed at start=${start} – ${err.message}`);
+      break;
+    }
+
+    if (typeof html !== 'string' || html.trim().length === 0) {
+      break;
+    }
+
+    const pageJobs = parseGuestHtml(html);
+    if (pageJobs.length === 0) {
+      break;
+    }
+
+    results.push(...pageJobs);
+    if (pageJobs.length < pageSize) {
+      break;
+    }
+  }
+
+  logger.info(`LinkedIn (guest): received ${results.length} listings for ${location}`);
+  return results.slice(0, maxResults);
+}
+
+function parseGuestHtml(html) {
+  const $ = cheerio.load(html);
+  const jobs = [];
+
+  $('.base-card').each((_, card) => {
+    const node = $(card);
+    const urn = node.attr('data-entity-urn') || '';
+    const jobUrl = node.find('a.base-card__full-link').attr('href') || '';
+    const idMatch = urn.match(/(\d+)\s*$/) || jobUrl.match(/currentJobId=(\d+)/);
+    const title = node.find('.base-search-card__title').text().trim();
+    const company = node.find('.base-search-card__subtitle').text().trim();
+    const jobLocation = node.find('.job-search-card__location').text().trim();
+    const fallbackId = [title, company, jobLocation, jobUrl]
+      .join('-')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    jobs.push({
+      jobId: `linkedin-${idMatch ? idMatch[1] : fallbackId}`,
+      title,
+      company,
+      location: jobLocation,
+      jobType: '',
+      experienceRequired: '',
+      salaryRaw: '',
+      description: '',
+      url: jobUrl,
+      source: 'LinkedIn',
+      postedDate: node.find('time').attr('datetime') || '',
+      tags: '',
+    });
+  });
+
+  return jobs.filter((job) => job.title && job.url && job.jobId.length > 'linkedin-'.length);
 }
 
 /**

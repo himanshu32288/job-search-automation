@@ -49,6 +49,10 @@ async function httpGet(url, options = {}) {
       logger.warn && logger.warn(
         `HTTP GET ${url} failed (attempt ${attempt}/${retries}, status ${status}): ${err.message}`
       );
+      const isClientError = typeof status === 'number' && status >= 400 && status < 500;
+      if (isClientError && status !== 429) {
+        break;
+      }
       if (attempt < retries) {
         await sleep(retryDelay * attempt);
       }
