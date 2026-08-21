@@ -9,7 +9,7 @@ A production-ready **Node.js** script that aggregates job listings from **free a
 | Feature | Details |
 |---|---|
 | **Multi-location India search** | One run can fetch jobs across multiple Indian cities |
-| **Free-first aggregation** | Default setup uses RemoteOK, Adzuna, Greenhouse, and Lever/company portals |
+| **Free-first aggregation** | Default setup uses RemoteOK, LinkedIn guest endpoint, Adzuna, Greenhouse, and Lever/company portals |
 | **Optional key rotation** | Providers with keys can use one key or rotate across multiple configured keys |
 | **Skills-based ranking** | Scores every listing against your skill set and sorts by match % |
 | **Salary filtering** | Parses salary strings, converts USD/EUR/GBP → INR, filters by range |
@@ -91,7 +91,7 @@ The connectors below are available but **disabled by default** so the standard r
 | Source | RapidAPI Link | Env Var |
 |---|---|---|
 | **JSearch** | [letscrape JSearch](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch) | `JSEARCH_API_KEY` |
-| **LinkedIn** | [LinkedIn Jobs Search](https://rapidapi.com/jaypat87/api/linkedin-jobs-search) | `LINKEDIN_API_KEY` |
+| **LinkedIn** | [LinkedIn Jobs Search](https://rapidapi.com/jaypat87/api/linkedin-jobs-search) (optional) + public guest fallback | `LINKEDIN_API_KEY` |
 | **Indeed** | [Indeed12](https://rapidapi.com/letscrape-6bRBa3QguO5/api/indeed12) | `INDEED_API_KEY` |
 | **Glassdoor** | [Glassdoor](https://rapidapi.com/Pat92/api/glassdoor) | `GLASSDOOR_API_KEY` |
 | **Naukri** | [Search "naukri" on RapidAPI](https://rapidapi.com/search?term=naukri) | `NAUKRI_API_KEY` |
@@ -137,7 +137,7 @@ The script builds a flat list and scores every job description against it.
 "sources": {
   "remoteok": true,
   "jsearch": false,
-  "linkedin": false,
+  "linkedin": true,
   "indeed": false,
   "glassdoor": false,
   "naukri": false,
@@ -195,6 +195,7 @@ After a successful run you'll find:
 | Symptom | Fix |
 |---|---|
 | `JSEARCH_API_KEY not set – skipping` | Leave it disabled or add a free-tier key to `.env` |
+| `LinkedIn: LINKEDIN_API_KEY not set` | Connector automatically falls back to LinkedIn public guest endpoint |
 | All sources skipped | Keep `remoteok`, `adzuna`, or `companyPortals` enabled in `config.json` |
 | `0 jobs` in CSV | Check `output/job-search.log` for errors; try `--no-cache` |
 | CSV is empty after incremental run | Delete `output/jobs.csv` and re-run to regenerate |

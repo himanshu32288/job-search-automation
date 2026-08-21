@@ -79,7 +79,7 @@
   "sources": {
     "remoteok": true,
     "jsearch": false,
-    "linkedin": false,
+    "linkedin": true,
     "indeed": false,
     "glassdoor": false,
     "naukri": false,
