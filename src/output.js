@@ -38,6 +38,47 @@ function parseLastCsvField(line) {
   return line.substring(i + 1).trim();
 }
 
+/**
+ * Parse the Nth (0-based) field from a single RFC-4180 CSV line.
+ * @param {string} line
+ * @param {number} index
+ * @returns {string}
+ */
+function parseNthCsvField(line, index) {
+  let fieldIndex = 0;
+  let i = 0;
+  // Strip trailing \r
+  const src = line.endsWith('\r') ? line.slice(0, -1) : line;
+
+  while (i <= src.length) {
+    let value = '';
+    if (src[i] === '"') {
+      i++; // skip opening quote
+      while (i < src.length) {
+        if (src[i] === '"' && src[i + 1] === '"') {
+          value += '"';
+          i += 2;
+        } else if (src[i] === '"') {
+          i++; // skip closing quote
+          break;
+        } else {
+          value += src[i];
+          i++;
+        }
+      }
+    } else {
+      while (i < src.length && src[i] !== ',') {
+        value += src[i];
+        i++;
+      }
+    }
+    if (fieldIndex === index) return value.trim();
+    fieldIndex++;
+    i++; // skip comma
+  }
+  return '';
+}
+
 /** CSV column definitions */
 const CSV_HEADERS = [
   { id: 'title',              title: 'Job Title' },
@@ -53,6 +94,8 @@ const CSV_HEADERS = [
   { id: 'source',             title: 'Source Portal' },
   { id: 'postedDate',         title: 'Posted Date' },
   { id: 'jobId',              title: 'Job ID' },
+  { id: 'appliedStatus',      title: 'Applied Status' },
+  { id: 'notes',              title: 'Notes' },
 ];
 
 /**
@@ -77,6 +120,8 @@ function prepareRow(job, maxDescLen = 500) {
     url: job.url || '',
     source: job.source || '',
     postedDate: job.postedDate || '',
+    appliedStatus: job.appliedStatus || 'Not Applied',
+    notes: job.notes || '',
   };
 }
 
@@ -98,19 +143,32 @@ async function writeCsv(jobs, outputCfg = {}, logger = console) {
   fs.mkdirSync(path.dirname(csvPath), { recursive: true });
 
   let existingIds = new Set();
+  // Map of jobId -> { appliedStatus, notes } from existing CSV
+  let existingMeta = new Map();
   let appendMode = false;
 
   if (incremental && fs.existsSync(csvPath)) {
-    // Parse existing CSV properly to extract Job IDs (last column).
-    // A simple RFC-4180 aware extractor for the last quoted/unquoted field.
-    const existing = fs.readFileSync(csvPath, 'utf8').split('\n');
-    // Header is first line – skip it
-    for (let i = 1; i < existing.length; i++) {
-      const line = existing[i].trim();
+    const lines = fs.readFileSync(csvPath, 'utf8').split('\n');
+    // Parse header to find column indices
+    const headerLine = lines[0] || '';
+    const headers = headerLine.split(',').map((h) => h.replace(/^"|"$/g, '').trim());
+    const idxJobId = headers.indexOf('Job ID');
+    const idxApplied = headers.indexOf('Applied Status');
+    const idxNotes = headers.indexOf('Notes');
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
       if (!line) continue;
-      // Extract the last field from a CSV line, handling quoted fields.
       const lastField = parseLastCsvField(line);
-      if (lastField) existingIds.add(lastField);
+      if (!lastField) continue;
+      // Extract jobId from the correct column position if possible
+      const jobId = idxJobId >= 0 ? parseNthCsvField(line, idxJobId) : lastField;
+      if (jobId) {
+        existingIds.add(jobId);
+        const appliedStatus = idxApplied >= 0 ? parseNthCsvField(line, idxApplied) : '';
+        const notes = idxNotes >= 0 ? parseNthCsvField(line, idxNotes) : '';
+        existingMeta.set(jobId, { appliedStatus, notes });
+      }
     }
     appendMode = true;
   }
@@ -178,4 +236,78 @@ function printSummary(jobs, limit = 10) {
   console.log('\n');
 }
 
-module.exports = { writeCsv, writeJson, printSummary };
+/**
+ * Update the Applied Status column in an existing CSV for a set of applied job URLs.
+ * @param {Set<string>} appliedUrls  URLs of jobs that were successfully applied to
+ * @param {object}      outputCfg
+ * @param {object}      logger
+ */
+async function updateAppliedStatus(appliedUrls, outputCfg = {}, logger = console) {
+  if (!appliedUrls || appliedUrls.size === 0) return;
+
+  const csvPath = outputCfg.csvFile || 'output/jobs.csv';
+  if (!fs.existsSync(csvPath)) return;
+
+  const lines = fs.readFileSync(csvPath, 'utf8').split('\n');
+  if (lines.length < 2) return;
+
+  const headerLine = lines[0].endsWith('\r') ? lines[0].slice(0, -1) : lines[0];
+  const headers = headerLine.split(',').map((h) => h.replace(/^"|"$/g, '').trim());
+  const idxUrl = headers.indexOf('Application URL');
+  const idxApplied = headers.indexOf('Applied Status');
+
+  if (idxUrl < 0 || idxApplied < 0) return;
+
+  const updated = lines.map((line, lineIndex) => {
+    if (lineIndex === 0 || !line.trim()) return line;
+    const url = parseNthCsvField(line, idxUrl);
+    if (!url || !appliedUrls.has(url)) return line;
+
+    // Replace the Applied Status field value in-place by reconstructing the line
+    const fields = [];
+    let fi = 0;
+    let i = 0;
+    const hasCarriageReturn = line.endsWith('\r');
+    const src = hasCarriageReturn ? line.slice(0, -1) : line;
+    while (i <= src.length) {
+      let raw = '';
+      let quoted = false;
+      if (src[i] === '"') {
+        quoted = true;
+        raw += '"';
+        i++;
+        while (i < src.length) {
+          raw += src[i];
+          if (src[i] === '"' && src[i + 1] === '"') {
+            raw += src[i + 1];
+            i += 2;
+          } else if (src[i] === '"') {
+            i++;
+            break;
+          } else {
+            i++;
+          }
+        }
+      } else {
+        while (i < src.length && src[i] !== ',') {
+          raw += src[i];
+          i++;
+        }
+      }
+      if (fi === idxApplied) {
+        fields.push('Applied');
+      } else {
+        fields.push(raw);
+      }
+      fi++;
+      i++; // skip comma
+    }
+    const rebuilt = fields.join(',');
+    return hasCarriageReturn ? rebuilt + '\r' : rebuilt;
+  });
+
+  fs.writeFileSync(csvPath, updated.join('\n'), 'utf8');
+  logger.info(`Output: marked ${appliedUrls.size} job(s) as Applied in ${csvPath}`);
+}
+
+module.exports = { writeCsv, writeJson, printSummary, updateAppliedStatus };
