@@ -23,7 +23,7 @@ const { buildSkillsList, matchSkills } = require('./src/utils/matcher');
 const { deduplicate } = require('./src/utils/deduplicator');
 const { salaryToINR } = require('./src/utils/salary');
 const { getSearchLocations, toSlug, withSearchLocation } = require('./src/utils/providerConfig');
-const { writeCsv, writeJson, printSummary } = require('./src/output');
+const { writeCsv, writeJson, printSummary, updateAppliedStatus } = require('./src/output');
 const { runLinkedInEasyApply } = require('./src/autoApply/linkedinEasyApply');
 
 // ── Connectors ──────────────────────────────────────────────
@@ -205,10 +205,13 @@ async function main() {
       logger.warn('Auto-apply requested but config.autoApply.linkedin block is missing; add it in config.json');
     } else {
       logger.info('Starting LinkedIn auto-apply...');
-      await runLinkedInEasyApply(allJobs, {
+      const applySummary = await runLinkedInEasyApply(allJobs, {
         ...autoApplyCfg.linkedin,
         enabled: true,
       }, logger);
+      if (applySummary && applySummary.appliedUrls && applySummary.appliedUrls.size > 0) {
+        await updateAppliedStatus(applySummary.appliedUrls, outputCfg, logger);
+      }
     }
   }
 

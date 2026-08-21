@@ -223,7 +223,7 @@ async function runLinkedInEasyApply(jobs, cfg = {}, logger = console) {
 
   if (candidateJobs.length === 0) {
     logger.info('LinkedIn auto-apply: no LinkedIn jobs available for applying');
-    return { attempted: 0, submitted: 0, skipped: 0, prepared: 0 };
+    return { attempted: 0, submitted: 0, skipped: 0, prepared: 0, appliedUrls: new Set() };
   }
 
   const resumePath = getLatestResumeFile(effectiveCfg.resumeDirectory, effectiveCfg.resumeExtensions);
@@ -244,7 +244,7 @@ async function runLinkedInEasyApply(jobs, cfg = {}, logger = console) {
     throw new Error(`Failed to launch Chromium for LinkedIn auto-apply - ${error.message}`);
   }
 
-  const summary = { attempted: 0, submitted: 0, skipped: 0, prepared: 0 };
+  const summary = { attempted: 0, submitted: 0, skipped: 0, prepared: 0, appliedUrls: new Set() };
 
   try {
     const page = context.pages()[0] || await context.newPage();
@@ -261,9 +261,15 @@ async function runLinkedInEasyApply(jobs, cfg = {}, logger = console) {
       summary.attempted += 1;
       try {
         const result = await applyToJob(page, job, effectiveCfg, resumePath, logger);
-        if (result.status === 'submitted') summary.submitted += 1;
-        else if (result.status === 'prepared') summary.prepared += 1;
-        else summary.skipped += 1;
+        if (result.status === 'submitted') {
+          summary.submitted += 1;
+          summary.appliedUrls.add(result.url);
+        } else if (result.status === 'prepared') {
+          summary.prepared += 1;
+          summary.appliedUrls.add(result.url);
+        } else {
+          summary.skipped += 1;
+        }
       } catch (error) {
         summary.skipped += 1;
         logger.warn(`LinkedIn auto-apply: failed for ${job.url} - ${error.message}`);
