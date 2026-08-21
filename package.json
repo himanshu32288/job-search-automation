@@ -1,23 +1,32 @@
 {
   "name": "job-search-automation",
   "version": "1.0.0",
-  "description": "Node.js job search automation across multiple job APIs",
-  "main": "src/index.js",
+  "description": "Multi-portal job search automation script with skills matching and CSV export",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "test": "node --test"
+    "start": "node index.js",
+    "start:no-cache": "node index.js --no-cache",
+    "start:clear-cache": "node index.js --clear-cache",
+    "test": "node -e \"require('./src/utils/matcher'); require('./src/utils/salary'); require('./src/utils/deduplicator'); console.log('All modules loaded OK');\""
   },
-  "repository": {
-    "type": "git",
-    "url": "http://localhost:26831/himanshu32288/job-search-automation"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "job-search",
+    "automation",
+    "linkedin",
+    "naukri",
+    "remoteok",
+    "jsearch",
+    "india"
+  ],
+  "author": "himanshu32288",
+  "license": "MIT",
   "dependencies": {
-    "dotenv": "^17.4.2"
-  },
-  "engines": {
-    "node": ">=18"
+    "axios": "^1.19.0",
+    "cheerio": "^1.2.0",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^17.4.2",
+    "node-cache": "^5.1.2",
+    "p-limit": "^4.0.0",
+    "winston": "^3.19.0"
   }
 }

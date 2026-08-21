@@ -1,0 +1,116 @@
+{
+  "search": {
+    "keywords": ["Java", "Spring Boot", "Microservices", "Backend Developer", "Software Engineer"],
+    "location": "",
+    "countryCode": "in",
+    "remote": true,
+    "jobType": "fulltime",
+    "experienceMin": 3,
+    "salaryMinINR": 2000000,
+    "salaryMaxINR": 5000000,
+    "maxResultsPerSource": 50,
+    "requestTimeoutMs": 15000,
+    "retryAttempts": 3,
+    "retryDelayMs": 2000,
+    "concurrency": 3
+  },
+  "skills": {
+    "languages": ["Java", "C++"],
+    "frameworksAndBackend": [
+      "Spring Boot",
+      "Spring WebFlux",
+      "Spring Data JPA",
+      "Hibernate"
+    ],
+    "distributedSystems": [
+      "Kafka",
+      "RabbitMQ",
+      "Solace",
+      "Event-Driven Architecture",
+      "Microservices"
+    ],
+    "databasesAndCaching": [
+      "Oracle",
+      "SQL",
+      "MongoDB",
+      "Redis",
+      "Aerospike"
+    ],
+    "systemDesign": [
+      "Low-Level Design",
+      "High-Level Design",
+      "Design Patterns",
+      "Scalability",
+      "High Availability",
+      "Fault Tolerance"
+    ],
+    "toolsAndInfra": [
+      "Docker",
+      "Kubernetes",
+      "Git",
+      "Grafana"
+    ],
+    "bestPractices": [
+      "REST API Design",
+      "Unit Testing",
+      "Integration Testing",
+      "Data Structures",
+      "Algorithms",
+      "OOP"
+    ]
+  },
+  "output": {
+    "csvFile": "output/jobs.csv",
+    "jsonFile": "output/jobs.json",
+    "saveJson": true,
+    "incrementalMerge": true,
+    "maxDescriptionLength": 500
+  },
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 3600,
+    "directory": "cache"
+  },
+  "logging": {
+    "level": "info",
+    "file": "output/job-search.log"
+  },
+  "sources": {
+    "remoteok": true,
+    "jsearch": true,
+    "linkedin": true,
+    "indeed": true,
+    "glassdoor": true,
+    "naukri": true,
+    "angellist": true,
+    "adzuna": true,
+    "companyPortals": true
+  },
+  "companyPortals": [
+    {
+      "name": "Google",
+      "url": "https://careers.google.com/jobs/results/?q=Java+Spring+Boot",
+      "enabled": false
+    },
+    {
+      "name": "Microsoft",
+      "url": "https://jobs.microsoft.com/us/en/search?keywords=Java+Spring+Boot",
+      "enabled": false
+    },
+    {
+      "name": "Amazon",
+      "url": "https://www.amazon.jobs/en/search?base_query=Java+Spring+Boot",
+      "enabled": false
+    },
+    {
+      "name": "Infosys",
+      "url": "https://career.infosys.com/joblist#SearchKey=java%20spring%20boot",
+      "enabled": false
+    },
+    {
+      "name": "TCS",
+      "url": "https://ibegin.tcs.com/iBegin/faces/oracle/webcenter/portalapp/pages/guest/jobsearchresult.jspx?searchBy=java%20spring",
+      "enabled": false
+    }
+  ]
+}
