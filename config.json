@@ -96,8 +96,7 @@
       "maxApplicationsPerRun": 5,
       "maxStepsPerApplication": 10,
       "userDataDir": ".linkedin-session",
-      "resumeDirectory": "resumes",
-      "resumeExtensions": [".pdf", ".doc", ".docx"],
+      "resumePath": "resumes/resume.pdf",
       "loginWaitMs": 20000,
       "answers": {
         "skills": "Java, Spring Boot, Microservices, Kafka, Docker, Kubernetes",
