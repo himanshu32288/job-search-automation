@@ -1,0 +1,23 @@
+{
+  "name": "job-search-automation",
+  "version": "1.0.0",
+  "description": "Node.js job search automation across multiple job APIs",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://localhost:26831/himanshu32288/job-search-automation"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
