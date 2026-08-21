@@ -46,7 +46,7 @@ A production-ready Node.js script that aggregates jobs from RemoteOK, JSearch, a
 
 ## Configuration
 
-Default configuration lives in `/home/runner/work/job-search-automation/job-search-automation/config/default.json` and includes:
+Default configuration lives in `config/default.json` and includes:
 
 - output CSV path
 - job-type, experience, and salary filters

@@ -40,7 +40,7 @@ function normalizeRemoteOk(job) {
     title: job.position || 'Unknown title',
     companyName: job.company || 'Unknown company',
     location: job.location || 'Remote',
-    jobType: job.tags?.includes('full-time') ? 'Full-time' : 'Remote',
+    jobType: job.tags?.includes('full-time') ? 'Full-time' : 'Unknown',
     description: job.description || '',
     experienceRequired: null,
     salary: job.salary_min || job.salary_max ? {
