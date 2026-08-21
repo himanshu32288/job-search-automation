@@ -10,6 +10,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { getRapidApiCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE_URL = 'https://jsearch.p.rapidapi.com/search';
 
@@ -21,15 +22,20 @@ const BASE_URL = 'https://jsearch.p.rapidapi.com/search';
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger) {
-  const apiKey = process.env.JSEARCH_API_KEY;
-  const apiHost = process.env.JSEARCH_API_HOST || 'jsearch.p.rapidapi.com';
+  const credentials = getRapidApiCredentials({
+    keyName: 'JSEARCH_API_KEY',
+    keysName: 'JSEARCH_API_KEYS',
+    hostName: 'JSEARCH_API_HOST',
+    defaultHost: 'jsearch.p.rapidapi.com',
+    placeholder: 'your_jsearch_api_key_here',
+  });
 
-  if (!apiKey || apiKey === 'your_jsearch_api_key_here') {
+  if (credentials.length === 0) {
     logger.warn('JSearch: JSEARCH_API_KEY not set – skipping');
     return [];
   }
 
-  logger.info('JSearch: fetching jobs...');
+  logger.info(`JSearch: fetching jobs for ${cfg.location || 'India'}...`);
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
   const location = cfg.location || 'India';
@@ -39,21 +45,26 @@ async function fetchJobs(cfg, logger) {
 
   for (let page = 1; page <= Math.min(maxPages, 5); page++) {
     try {
-      const data = await httpGet(BASE_URL, {
-        headers: {
-          'X-RapidAPI-Key': apiKey,
-          'X-RapidAPI-Host': apiHost,
-        },
-        params: {
-          query: `${query} ${location}`,
-          page,
-          num_pages: 1,
-          employment_types: 'FULLTIME',
-        },
-        timeout: cfg.requestTimeoutMs,
-        retries: cfg.retryAttempts,
-        retryDelay: cfg.retryDelayMs,
+      const data = await runWithFallback({
+        label: 'JSearch',
+        candidates: credentials,
         logger,
+        runner: ({ apiKey, apiHost }) => httpGet(BASE_URL, {
+          headers: {
+            'X-RapidAPI-Key': apiKey,
+            'X-RapidAPI-Host': apiHost,
+          },
+          params: {
+            query: `${query} ${location}`,
+            page,
+            num_pages: 1,
+            employment_types: 'FULLTIME',
+          },
+          timeout: cfg.requestTimeoutMs,
+          retries: cfg.retryAttempts,
+          retryDelay: cfg.retryDelayMs,
+          logger,
+        }),
       });
 
       const jobs = data && Array.isArray(data.data) ? data.data : [];
@@ -65,7 +76,7 @@ async function fetchJobs(cfg, logger) {
     }
   }
 
-  logger.info(`JSearch: received ${allJobs.length} listings`);
+  logger.info(`JSearch: received ${allJobs.length} listings for ${location}`);
   return allJobs;
 }
 

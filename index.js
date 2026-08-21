@@ -22,6 +22,7 @@ const Cache = require('./src/utils/cache');
 const { buildSkillsList, matchSkills } = require('./src/utils/matcher');
 const { deduplicate } = require('./src/utils/deduplicator');
 const { salaryToINR } = require('./src/utils/salary');
+const { getSearchLocations, toSlug, withSearchLocation } = require('./src/utils/providerConfig');
 const { writeCsv, writeJson, printSummary } = require('./src/output');
 
 // ── Connectors ──────────────────────────────────────────────
@@ -90,68 +91,46 @@ async function main() {
   logger.info('═'.repeat(60));
 
   const limit = pLimit(searchCfg.concurrency || 3);
+  const searchLocations = getSearchLocations(searchCfg);
 
   // Build fetch tasks based on enabled sources
   const tasks = [];
+  const locationScopedSources = [
+    ['jsearch', jsearch.fetchJobs],
+    ['linkedin', linkedin.fetchJobs],
+    ['indeed', indeed.fetchJobs],
+    ['glassdoor', glassdoor.fetchJobs],
+    ['naukri', naukri.fetchJobs],
+    ['adzuna', adzuna.fetchJobs],
+    ['companyPortals', (cfg, activeLogger) => companyPortals.fetchJobs(cfg, activeLogger, config.companyPortals || [])],
+  ];
+
+  function addTask(cacheKey, label, fetchFn, scopedCfg) {
+    tasks.push(limit(() => fetchWithCache(cacheKey, async () => {
+      logger.info(`${label}: starting fetch`);
+      return fetchFn(scopedCfg, logger);
+    })));
+  }
 
   if (sources.remoteok !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('remoteok', () => remoteok.fetchJobs(searchCfg, logger))
-    ));
-  }
-
-  if (sources.jsearch !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('jsearch', () => jsearch.fetchJobs(searchCfg, logger))
-    ));
-  }
-
-  if (sources.linkedin !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('linkedin', () => linkedin.fetchJobs(searchCfg, logger))
-    ));
-  }
-
-  if (sources.indeed !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('indeed', () => indeed.fetchJobs(searchCfg, logger))
-    ));
-  }
-
-  if (sources.glassdoor !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('glassdoor', () => glassdoor.fetchJobs(searchCfg, logger))
-    ));
-  }
-
-  if (sources.naukri !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('naukri', () => naukri.fetchJobs(searchCfg, logger))
-    ));
+    addTask('remoteok', 'RemoteOK', remoteok.fetchJobs, searchCfg);
   }
 
   if (sources.angellist !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('angellist', () => angellist.fetchJobs(searchCfg, logger))
-    ));
+    addTask('angellist', 'AngelList', angellist.fetchJobs, searchCfg);
   }
 
-  if (sources.adzuna !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('adzuna', () => adzuna.fetchJobs(searchCfg, logger))
-    ));
-  }
-
-  if (sources.companyPortals !== false) {
-    tasks.push(limit(() =>
-      fetchWithCache('companyPortals', () =>
-        companyPortals.fetchJobs(searchCfg, logger, config.companyPortals || [])
-      )
-    ));
-  }
+  locationScopedSources.forEach(([sourceKey, fetchFn]) => {
+    if (sources[sourceKey] === false) return;
+    searchLocations.forEach((location) => {
+      const scopedCfg = withSearchLocation(searchCfg, location);
+      const locationSlug = toSlug(location);
+      addTask(`${sourceKey}:${locationSlug}`, `${sourceKey}:${location}`, fetchFn, scopedCfg);
+    });
+  });
 
   // Run all fetch tasks in parallel (limited by concurrency setting)
-  logger.info(`Fetching from ${tasks.length} source(s) with concurrency=${searchCfg.concurrency || 3}...`);
+  logger.info(`Fetching from ${tasks.length} source(s) across ${searchLocations.length} Indian location(s) with concurrency=${searchCfg.concurrency || 3}...`);
   const results = await Promise.allSettled(tasks);
 
   // Flatten results

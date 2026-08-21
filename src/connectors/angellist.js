@@ -10,6 +10,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { getRapidApiCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE_URL = 'https://angellist-jobs.p.rapidapi.com/jobs';
 
@@ -21,10 +22,15 @@ const BASE_URL = 'https://angellist-jobs.p.rapidapi.com/jobs';
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger) {
-  const apiKey = process.env.ANGELLIST_API_KEY;
-  const apiHost = process.env.ANGELLIST_API_HOST || 'angellist-jobs.p.rapidapi.com';
+  const credentials = getRapidApiCredentials({
+    keyName: 'ANGELLIST_API_KEY',
+    keysName: 'ANGELLIST_API_KEYS',
+    hostName: 'ANGELLIST_API_HOST',
+    defaultHost: 'angellist-jobs.p.rapidapi.com',
+    placeholder: 'your_angellist_rapidapi_key_here',
+  });
 
-  if (!apiKey || apiKey === 'your_angellist_rapidapi_key_here') {
+  if (credentials.length === 0) {
     logger.warn('AngelList: ANGELLIST_API_KEY not set – skipping');
     return [];
   }
@@ -35,16 +41,21 @@ async function fetchJobs(cfg, logger) {
 
   let raw;
   try {
-    raw = await httpGet(BASE_URL, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': apiHost,
-      },
-      params: { query, page: 1 },
-      timeout: cfg.requestTimeoutMs,
-      retries: cfg.retryAttempts,
-      retryDelay: cfg.retryDelayMs,
+    raw = await runWithFallback({
+      label: 'AngelList',
+      candidates: credentials,
       logger,
+      runner: ({ apiKey, apiHost }) => httpGet(BASE_URL, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': apiHost,
+        },
+        params: { query, page: 1 },
+        timeout: cfg.requestTimeoutMs,
+        retries: cfg.retryAttempts,
+        retryDelay: cfg.retryDelayMs,
+        logger,
+      }),
     });
   } catch (err) {
     logger.error(`AngelList: fetch failed – ${err.message}`);

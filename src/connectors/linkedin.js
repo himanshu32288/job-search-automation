@@ -10,6 +10,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { getRapidApiCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE_URL = 'https://linkedin-jobs-search.p.rapidapi.com/';
 
@@ -21,15 +22,20 @@ const BASE_URL = 'https://linkedin-jobs-search.p.rapidapi.com/';
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger) {
-  const apiKey = process.env.LINKEDIN_API_KEY;
-  const apiHost = process.env.LINKEDIN_API_HOST || 'linkedin-jobs-search.p.rapidapi.com';
+  const credentials = getRapidApiCredentials({
+    keyName: 'LINKEDIN_API_KEY',
+    keysName: 'LINKEDIN_API_KEYS',
+    hostName: 'LINKEDIN_API_HOST',
+    defaultHost: 'linkedin-jobs-search.p.rapidapi.com',
+    placeholder: 'your_linkedin_rapidapi_key_here',
+  });
 
-  if (!apiKey || apiKey === 'your_linkedin_rapidapi_key_here') {
+  if (credentials.length === 0) {
     logger.warn('LinkedIn: LINKEDIN_API_KEY not set – skipping');
     return [];
   }
 
-  logger.info('LinkedIn: fetching jobs...');
+  logger.info(`LinkedIn: fetching jobs for ${cfg.location || 'India'}...`);
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
   const location = cfg.location || 'India';
@@ -37,23 +43,28 @@ async function fetchJobs(cfg, logger) {
 
   let raw;
   try {
-    raw = await httpGet(BASE_URL, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': apiHost,
-      },
-      params: {
-        keywords: query,
-        location_id: locationId,
-        dateSincePosted: 'past Month',
-        jobType: 'full time',
-        onsiteRemote: 'remote',
-        start: '0',
-      },
-      timeout: cfg.requestTimeoutMs,
-      retries: cfg.retryAttempts,
-      retryDelay: cfg.retryDelayMs,
+    raw = await runWithFallback({
+      label: 'LinkedIn',
+      candidates: credentials,
       logger,
+      runner: ({ apiKey, apiHost }) => httpGet(BASE_URL, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': apiHost,
+        },
+        params: {
+          keywords: query,
+          location_id: locationId,
+          dateSincePosted: 'past Month',
+          jobType: 'full time',
+          onsiteRemote: 'remote',
+          start: '0',
+        },
+        timeout: cfg.requestTimeoutMs,
+        retries: cfg.retryAttempts,
+        retryDelay: cfg.retryDelayMs,
+        logger,
+      }),
     });
   } catch (err) {
     logger.error(`LinkedIn: fetch failed – ${err.message}`);
@@ -61,7 +72,7 @@ async function fetchJobs(cfg, logger) {
   }
 
   const jobs = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.data) ? raw.data : []);
-  logger.info(`LinkedIn: received ${jobs.length} listings`);
+  logger.info(`LinkedIn: received ${jobs.length} listings for ${cfg.location || 'India'}`);
 
   return jobs.slice(0, cfg.maxResultsPerSource || 50).map(normalise);
 }

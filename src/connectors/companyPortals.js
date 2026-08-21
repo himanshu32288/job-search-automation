@@ -12,6 +12,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { toSlug } = require('../utils/providerConfig');
 
 /**
  * Fetch jobs from company career portals.
@@ -22,9 +23,11 @@ const { httpGet } = require('../utils/http');
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger, portals = []) {
-  logger.info('Company Portals: generating career page links...');
+  logger.info(`Company Portals: generating career page links for ${cfg.location || 'India'}...`);
 
   const keywords = (cfg.keywords || ['Java', 'Spring Boot']).join('+');
+  const location = cfg.location || 'India';
+  const locationTerms = String(location).toLowerCase().split(',').map((value) => value.trim()).filter(Boolean);
   const results = [];
   let idx = 0;
 
@@ -51,7 +54,9 @@ async function fetchJobs(cfg, logger, portals = []) {
         const kwLower = (cfg.keywords || []).map((k) => k.toLowerCase());
         const filtered = data.jobs.filter((j) => {
           const text = `${j.title} ${j.location ? j.location.name : ''}`.toLowerCase();
-          return kwLower.length === 0 || kwLower.some((k) => text.includes(k));
+          const matchesKeyword = kwLower.length === 0 || kwLower.some((k) => text.includes(k));
+          const matchesLocation = locationTerms.length === 0 || locationTerms.some((term) => text.includes(term));
+          return matchesKeyword && matchesLocation;
         });
 
         filtered.slice(0, 10).forEach((j) => {
@@ -81,7 +86,9 @@ async function fetchJobs(cfg, logger, portals = []) {
         const kwLower = (cfg.keywords || []).map((k) => k.toLowerCase());
         const filtered = data.filter((j) => {
           const text = `${j.text} ${j.categories ? Object.values(j.categories).join(' ') : ''}`.toLowerCase();
-          return kwLower.length === 0 || kwLower.some((k) => text.includes(k));
+          const matchesKeyword = kwLower.length === 0 || kwLower.some((k) => text.includes(k));
+          const matchesLocation = locationTerms.length === 0 || locationTerms.some((term) => text.includes(term));
+          return matchesKeyword && matchesLocation;
         });
 
         filtered.slice(0, 10).forEach((j) => {
@@ -97,14 +104,14 @@ async function fetchJobs(cfg, logger, portals = []) {
   const enabledPortals = portals.filter((p) => p.enabled);
   enabledPortals.forEach((p) => {
     results.push({
-      jobId: `portal-${idx++}-${(p.name || '').replace(/\s/g, '-').toLowerCase()}`,
+      jobId: `portal-${idx++}-${(p.name || '').replace(/\s/g, '-').toLowerCase()}-${toSlug(location)}`,
       title: `${p.name} – Career Page`,
       company: p.name,
-      location: 'Visit link for details',
+      location,
       jobType: 'Full-time',
       experienceRequired: '',
       salaryRaw: '',
-      description: `Visit ${p.name} career page for current openings matching: ${keywords}`,
+      description: `Visit ${p.name} career page for current openings in ${location} matching: ${keywords}`,
       url: p.url,
       source: 'Company Portal',
       postedDate: '',
@@ -112,7 +119,7 @@ async function fetchJobs(cfg, logger, portals = []) {
     });
   });
 
-  logger.info(`Company Portals: found ${results.length} listings`);
+  logger.info(`Company Portals: found ${results.length} listings for ${location}`);
   return results;
 }
 

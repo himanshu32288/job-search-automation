@@ -10,6 +10,7 @@
 'use strict';
 
 const { httpGet } = require('../utils/http');
+const { getAdzunaCredentials, runWithFallback } = require('../utils/providerConfig');
 
 const BASE = 'https://api.adzuna.com/v1/api/jobs';
 
@@ -21,15 +22,14 @@ const BASE = 'https://api.adzuna.com/v1/api/jobs';
  * @returns {Promise<object[]>}  normalised job objects
  */
 async function fetchJobs(cfg, logger) {
-  const appId = process.env.ADZUNA_APP_ID;
-  const apiKey = process.env.ADZUNA_API_KEY;
+  const credentials = getAdzunaCredentials();
 
-  if (!appId || appId === 'your_adzuna_app_id_here' || !apiKey || apiKey === 'your_adzuna_api_key_here') {
+  if (credentials.length === 0) {
     logger.warn('Adzuna: ADZUNA_APP_ID/ADZUNA_API_KEY not set – skipping');
     return [];
   }
 
-  logger.info('Adzuna: fetching jobs...');
+  logger.info(`Adzuna: fetching jobs for ${cfg.location || 'India'}...`);
 
   const query = (cfg.keywords || ['Java Spring Boot']).join(' ');
   const country = 'in'; // India
@@ -37,20 +37,25 @@ async function fetchJobs(cfg, logger) {
 
   let raw;
   try {
-    raw = await httpGet(url, {
-      params: {
-        app_id: appId,
-        app_key: apiKey,
-        results_per_page: Math.min(cfg.maxResultsPerSource || 50, 50),
-        what: query,
-        where: cfg.location || '',
-        full_time: 1,
-        salary_min: cfg.salaryMinINR ? Math.round(cfg.salaryMinINR / 83) : undefined,
-      },
-      timeout: cfg.requestTimeoutMs,
-      retries: cfg.retryAttempts,
-      retryDelay: cfg.retryDelayMs,
+    raw = await runWithFallback({
+      label: 'Adzuna',
+      candidates: credentials,
       logger,
+      runner: ({ appId, apiKey }) => httpGet(url, {
+        params: {
+          app_id: appId,
+          app_key: apiKey,
+          results_per_page: Math.min(cfg.maxResultsPerSource || 50, 50),
+          what: query,
+          where: cfg.location || '',
+          full_time: 1,
+          salary_min: cfg.salaryMinINR ? Math.round(cfg.salaryMinINR / 83) : undefined,
+        },
+        timeout: cfg.requestTimeoutMs,
+        retries: cfg.retryAttempts,
+        retryDelay: cfg.retryDelayMs,
+        logger,
+      }),
     });
   } catch (err) {
     logger.error(`Adzuna: fetch failed – ${err.message}`);
@@ -58,7 +63,7 @@ async function fetchJobs(cfg, logger) {
   }
 
   const jobs = raw && Array.isArray(raw.results) ? raw.results : [];
-  logger.info(`Adzuna: received ${jobs.length} listings`);
+  logger.info(`Adzuna: received ${jobs.length} listings for ${cfg.location || 'India'}`);
 
   return jobs.map(normalise);
 }
