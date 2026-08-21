@@ -87,6 +87,31 @@
     "adzuna": true,
     "companyPortals": true
   },
+  "autoApply": {
+    "enabled": false,
+    "linkedin": {
+      "enabled": true,
+      "headless": false,
+      "submitApplications": false,
+      "maxApplicationsPerRun": 5,
+      "maxStepsPerApplication": 10,
+      "userDataDir": ".linkedin-session",
+      "resumeDirectory": "resumes",
+      "resumeExtensions": [".pdf", ".doc", ".docx"],
+      "loginWaitMs": 20000,
+      "answers": {
+        "skills": "Java, Spring Boot, Microservices, Kafka, Docker, Kubernetes",
+        "experience": "3+ years",
+        "noticePeriod": "30 days",
+        "currentSalary": "17 LPA",
+        "expectedSalary": "22 LPA",
+        "additional": {
+          "Are you legally authorized to work in India": "Yes",
+          "Do you require visa sponsorship": "No"
+        }
+      }
+    }
+  },
   "companyPortals": [
     {
       "name": "Google",
