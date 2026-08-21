@@ -81,6 +81,72 @@ async function closeEasyApplyModal(page) {
   }
 }
 
+/**
+ * Detects the LinkedIn Easy Apply resume-selection step (where resumes stored in
+ * your LinkedIn profile are listed) and selects the first/top option.
+ *
+ * LinkedIn renders saved resumes as a list of radio-button-like cards inside the
+ * Easy Apply modal.  The typical DOM shape is:
+ *   <div role="radiogroup" aria-label="Choose a resume"> (or similar)
+ *     <div role="radio" ...>  ← first stored resume (most recently uploaded)
+ *     ...
+ *   </div>
+ *
+ * Returns true when a stored resume was successfully selected, false otherwise.
+ */
+async function selectLinkedInStoredResume(page) {
+  // Look for a radio-group that LinkedIn uses for stored resumes.
+  const resumeGroupSelectors = [
+    '[role="radiogroup"][aria-label*="resume" i]',
+    '[role="radiogroup"][aria-label*="cv" i]',
+    '.jobs-resume-picker__resume-list',
+    '[data-test-resume-picker-modal]',
+  ];
+
+  for (const selector of resumeGroupSelectors) {
+    const group = page.locator(selector).first();
+    if (!(await group.isVisible().catch(() => false))) continue;
+
+    // Try to click the first resume card/radio option inside the group.
+    const firstOption = group.locator('[role="radio"], input[type="radio"]').first();
+    if (await firstOption.isVisible().catch(() => false)) {
+      const isAlreadySelected = await firstOption.getAttribute('aria-checked').catch(() => null);
+      if (isAlreadySelected !== 'true') {
+        await firstOption.click().catch(() => {});
+      }
+      return true;
+    }
+
+    // Fallback: click the first child element of the group.
+    const firstChild = group.locator('> *').first();
+    if (await firstChild.isVisible().catch(() => false)) {
+      await firstChild.click().catch(() => {});
+      return true;
+    }
+  }
+
+  // Also handle the case where LinkedIn shows a heading like "Choose resume"
+  // followed by resume items that are not wrapped in a role="radiogroup".
+  const resumeHeading = page.locator(
+    'h3:has-text("resume"), legend:has-text("resume")'
+  ).first();
+  if (await resumeHeading.isVisible().catch(() => false)) {
+    // Scope the radio search to the heading's closest ancestor section/div.
+    const nearbyRadio = resumeHeading
+      .locator('xpath=ancestor::div[1]//input[@type="radio"]')
+      .first();
+    if (await nearbyRadio.isVisible().catch(() => false)) {
+      const isAlreadyChecked = await nearbyRadio.isChecked().catch(() => false);
+      if (!isAlreadyChecked) {
+        await nearbyRadio.click().catch(() => {});
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function fillCurrentStep(page, answers, resumePath) {
   const textInputs = page.locator('input[type="text"], input[type="number"], textarea');
   const textInputCount = await textInputs.count();
@@ -118,24 +184,30 @@ async function fillCurrentStep(page, answers, resumePath) {
     await field.selectOption({ label: answer }).catch(() => {});
   }
 
-  if (!resumePath) return;
-  const fileInputs = page.locator('input[type="file"]');
-  const fileInputCount = await fileInputs.count();
-  for (let index = 0; index < fileInputCount; index += 1) {
-    const field = fileInputs.nth(index);
-    const metadata = [
-      await field.getAttribute('aria-label').catch(() => ''),
-      await field.getAttribute('name').catch(() => ''),
-      await field.getAttribute('id').catch(() => ''),
-      await field.getAttribute('accept').catch(() => ''),
-    ].join(' ');
-    const normalisedMetadata = normalise(metadata);
-    const shouldUploadResume = fileInputCount === 1
-      || normalisedMetadata.includes('resume')
-      || normalisedMetadata.includes('cv');
+  // Try to select a resume already stored in the LinkedIn profile first.
+  const storedResumeSelected = await selectLinkedInStoredResume(page);
 
-    if (!shouldUploadResume) continue;
-    await field.setInputFiles(resumePath).catch(() => {});
+  // Fall back to uploading a local file only when no stored resume was selected.
+  if (!storedResumeSelected) {
+    if (!resumePath) return;
+    const fileInputs = page.locator('input[type="file"]');
+    const fileInputCount = await fileInputs.count();
+    for (let index = 0; index < fileInputCount; index += 1) {
+      const field = fileInputs.nth(index);
+      const metadata = [
+        await field.getAttribute('aria-label').catch(() => ''),
+        await field.getAttribute('name').catch(() => ''),
+        await field.getAttribute('id').catch(() => ''),
+        await field.getAttribute('accept').catch(() => ''),
+      ].join(' ');
+      const normalisedMetadata = normalise(metadata);
+      const shouldUploadResume = fileInputCount === 1
+        || normalisedMetadata.includes('resume')
+        || normalisedMetadata.includes('cv');
+
+      if (!shouldUploadResume) continue;
+      await field.setInputFiles(resumePath).catch(() => {});
+    }
   }
 }
 
@@ -228,9 +300,9 @@ async function runLinkedInEasyApply(jobs, cfg = {}, logger = console) {
 
   const resumePath = getLatestResumeFile(effectiveCfg.resumeDirectory, effectiveCfg.resumeExtensions);
   if (!resumePath) {
-    logger.warn(`LinkedIn auto-apply: no resume found in ${effectiveCfg.resumeDirectory}`);
+    logger.info('LinkedIn auto-apply: no local resume found; will use LinkedIn stored resume if available');
   } else {
-    logger.info(`LinkedIn auto-apply: using latest resume ${resumePath}`);
+    logger.info(`LinkedIn auto-apply: local resume available at ${resumePath} (used as fallback when no stored resume is found)`);
   }
 
   const chromium = getChromium();
@@ -286,5 +358,6 @@ async function runLinkedInEasyApply(jobs, cfg = {}, logger = console) {
 module.exports = {
   getAnswerForQuestion,
   getLatestResumeFile,
+  selectLinkedInStoredResume,
   runLinkedInEasyApply,
 };
