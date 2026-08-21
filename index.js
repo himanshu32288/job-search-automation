@@ -24,6 +24,7 @@ const { deduplicate } = require('./src/utils/deduplicator');
 const { salaryToINR } = require('./src/utils/salary');
 const { getSearchLocations, toSlug, withSearchLocation } = require('./src/utils/providerConfig');
 const { writeCsv, writeJson, printSummary } = require('./src/output');
+const { runLinkedInEasyApply } = require('./src/autoApply/linkedinEasyApply');
 
 // ── Connectors ──────────────────────────────────────────────
 const remoteok = require('./src/connectors/remoteok');
@@ -44,6 +45,7 @@ const configPath = (() => {
 })();
 const noCache = args.includes('--no-cache');
 const clearCache = args.includes('--clear-cache');
+const forceAutoApply = args.includes('--auto-apply');
 
 // ── Load config ─────────────────────────────────────────────
 let config;
@@ -195,6 +197,20 @@ async function main() {
   }
 
   printSummary(allJobs, 15);
+
+  const autoApplyCfg = config.autoApply || {};
+  const shouldRunAutoApply = forceAutoApply || autoApplyCfg.enabled === true;
+  if (shouldRunAutoApply) {
+    if (!autoApplyCfg.linkedin || typeof autoApplyCfg.linkedin !== 'object') {
+      logger.warn('Auto-apply requested but config.autoApply.linkedin block is missing; add it in config.json');
+    } else {
+      logger.info('Starting LinkedIn auto-apply...');
+      await runLinkedInEasyApply(allJobs, {
+        ...autoApplyCfg.linkedin,
+        enabled: true,
+      }, logger);
+    }
+  }
 
   logger.info(`✔  Done. ${allJobs.length} jobs written to ${outputCfg.csvFile || 'output/jobs.csv'}`);
 }

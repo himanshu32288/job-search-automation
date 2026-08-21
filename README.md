@@ -19,6 +19,7 @@ A production-ready **Node.js** script that aggregates job listings from **free a
 | **Multi-format output** | CSV (primary), JSON (optional), rich console summary |
 | **Incremental merge** | Appends only new jobs to existing CSV |
 | **Structured logging** | Winston logger with timestamps, levels, and log file |
+| **LinkedIn Easy Apply automation (optional)** | Opens LinkedIn, picks latest resume from local folder, fills common answers, and submits Easy Apply forms |
 
 ---
 
@@ -48,7 +49,9 @@ job-search-automation/
 │   │   ├── salary.js         # Salary parsing & INR conversion
 │   │   ├── deduplicator.js   # Duplicate filtering
 │   │   └── http.js           # Axios wrapper with retry logic
-│   └── output.js             # CSV / JSON / console output
+│   ├── output.js             # CSV / JSON / console output
+│   └── autoApply/
+│       └── linkedinEasyApply.js # LinkedIn Easy Apply automation
 ├── output/                   # Generated output files (git-ignored)
 └── cache/                    # Cache files (git-ignored)
 ```
@@ -150,6 +153,33 @@ The script builds a flat list and scores every job description against it.
 ### Company portals
 Add your own career page URLs to `companyPortals` array and set `"enabled": true`.
 
+### LinkedIn auto-apply
+The `autoApply` section is optional and disabled by default.
+
+It can:
+- Use a persistent LinkedIn browser session (`.linkedin-session`)
+- Pick the latest resume file from `resumeDirectory` (by modified date)
+- Fill common answers like skills, experience, notice period, and salary
+- Apply only on jobs where Easy Apply is available
+
+Add your responses in:
+```json
+"autoApply": {
+  "enabled": true,
+  "linkedin": {
+    "submitApplications": false,
+    "resumeDirectory": "resumes",
+    "answers": {
+      "skills": "Java, Spring Boot, Microservices",
+      "experience": "3+ years",
+      "noticePeriod": "30 days",
+      "currentSalary": "17 LPA",
+      "expectedSalary": "22 LPA"
+    }
+  }
+}
+```
+
 ### Daily automated extraction
 This repo includes a GitHub Actions workflow that runs every day and uploads the generated `output/` files as artifacts.
 
@@ -174,6 +204,9 @@ npm run start:clear-cache
 
 # Use a custom config file
 node index.js --config my-config.json
+
+# Run LinkedIn auto-apply (must be enabled in config or via this flag)
+node index.js --auto-apply
 ```
 
 ### Output files
